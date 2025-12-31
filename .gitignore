@@ -1,4 +1,4 @@
-# environment files
+# Environment files
 .env
 
 # Python-generated files
@@ -11,3 +11,4 @@ wheels/
 
 # Virtual environments
 .venv
+uv.lock
