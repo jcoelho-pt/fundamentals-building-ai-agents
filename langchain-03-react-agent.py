@@ -5,10 +5,11 @@ from langchain_core.tools import tool
 from langchain_community.tools import WikipediaQueryRun
 from langchain_community.utilities import WikipediaAPIWrapper
 from langchain.chat_models import init_chat_model # Initialize chat model function
-from langchain.agents import create_react_agent
+from langchain.agents import create_agent
+from langchain.agents.structured_output import ToolStrategy
+from pydantic import BaseModel
 import re
 from typing import Dict, Union
-
 
 # Variables and Constants
 load_dotenv()  # Load environment variables from .env file
@@ -16,7 +17,8 @@ llm_model = "gemini-3-flash-preview" # options: gemini-3-flash-preview, gpt-4o-m
 llm_provider = "google_genai" # alternatives: google_genai, openai
 llm_temperature = 0.8 # Temperature setting for the LLM, the higher the value, the more creative the output. > 1 is very creative but may lose coherence.
 
-print(f"Using LangChain version: {langchain.__version__}") 
+print(f"-- Using LangChain version: {langchain.__version__}")
+
 
 # Initialize a language model (LLM) ###################################
 print("Initializing LLM...")
@@ -29,6 +31,7 @@ if exit_if_not_configured:
 
 print(f"-- Using model: {llm.name}")
 print("...")
+
 
 # Defining the tools #########################################
 print("Defining Tools...")
@@ -50,7 +53,6 @@ def sum_numbers_with_complex_output(inputs: str) -> Dict[str, Union[float, str]]
         return {"result": total}
     except Exception as e:
         return {"error": f"Error during summation: {str(e)}"}
-
 
 print("Defining 'add_two_integers' Tool...")
 @tool
@@ -118,39 +120,27 @@ def wikipedia_search(query: str) -> dict:
 print("...")
 
 
-
 # Conntecting the list of tools to the model  ###########################
 print("Connecting Tools to the LLM...")
 
-tools = [add_two_integers, subtract_two_integers, multiply_two_integers, wikipedia_search] # List of tool functions to connect
+math_tools = [add_two_integers, subtract_two_integers, multiply_two_integers] # List of tool functions to connect
 
-llm_with_tools = llm.bind_tools(tools) # Bind the tools to the chat model
+llm_with_tools = llm.bind_tools(math_tools) # Bind the tools to the chat model
 print("...")
 
-# Creating a tool map dictionary for easy access ##############################
-# tool_map = {"add": add_two_integers, "subtract": subtract_two_integers, 
-#            "multiply": multiply_two_integers, "wikipedia": wikipedia_search}
 
-# Define the input arguments
-input_ = {"a": 15, "b": 27}
+# Creating the agent
+math_agent = create_agent (
+    model = llm, # the model handles reasoning and decides whent to call a tool
+    tools = math_tools, # list of tool functions the agent can use
+    system_prompt = "You are a helpful mathematical assistant that can perform various operations. Use the tools precisely and explain your reasoning.", # system prompt defining the agent’s personality and instructions
+)
 
-# Call the function by using the tool name from the tool map and invoke it with input
+# Giving the agent a conversation history, which simulates a chat interaction
+result = math_agent.invoke({
+    "messages": [
+        { "role": "user", "content": "Add the numbers -10 and -20"}
+    ]
+})
 
-# tool_map["add"].invoke(input_)
-print("Adding two integers", input_, "using 'add_two_integers' Tool...")
-result = llm_with_tools.invoke({'tool': 'add_two_integers', 'input': input_})
-print("-- Result:", result)
-
-exit()
-
-# Running the Wikipedia tool
-#print("#### Querying Wikipedia for 'Worldbuilding'...")
-#try:
-#    # If decorator produced a Tool-like object with a .run API
-#    result = wikipedia_search.run({"query": "What is Worldbuilding?"})
-#except Exception:
-#    # Otherwise call the decorated callable directly with a string
-#    result = wikipedia_search("What is Worldbuilding?")
-#
-#print("#### Result from Wikipedia Tool:")
-#print(result)
+print("Agent Result:", result)
